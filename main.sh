@@ -17,10 +17,10 @@ if [ -z $DOCKERHUB_NAMESPACE ]; then
 fi
 
 DOCKERHUB_API="https://hub.docker.com/v2"
+REGISTRY_API="https://registry-1.docker.io/v2"
 REPO_PREFIXES="^(webapp-)" #if you want to add new ones, syntax will be "^(webapp-|api-|microservice-)" etc.
 
 refresh_token() {
-
   TOKEN=$(curl -s -X POST "$DOCKERHUB_API/users/login/" \
     -H "Content-Type: application/json" \
     -d "{\"username\": \"$DOCKERHUB_USERNAME\", \"password\": \"$DOCKERHUB_PASSWORD\"}" | jq -r .token)
@@ -29,14 +29,16 @@ refresh_token() {
 }
 
 delete_digest() {
-
   local namespace=$1
   local repository=$2
   local digest=$3
+  local repo="$namespace/$repository"
 
-  local response_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$DOCKERHUB_API/namespaces/$namespace/repositories/$repository/manifests" -H "Authorization: JWT $TOKEN" -H "Content-Type: application/json" -d "{\"digests\":[\"${digest}\"],\"delete_references\":true}")
+  local response_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$REGISTRY_API/$repo/manifests/$digest" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Accept: application/vnd.docker.distribution.manifest.v2+json")
 
-  if [ "$response_code" -eq 200 ]; then
+  if [ "$response_code" -eq 202 ]; then
     echo "Manifest [$digest] deleted!"
   else
     echo "Error when deleting manifest [$digest] : returned HTTP code was [$response_code]"
